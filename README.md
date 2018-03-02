@@ -29,11 +29,18 @@ Steps to depoy this playbook
 
 1. Connect to GC `gcloud init`
 2. Configure your accout with the name of the project and region.
-3. Execute the Ansible Playbook
+3. Execute the Ansible Playbook 
 
   ```
     ansible-playbook -vvvv  cluster.yml 
   ```
+(**NOTE if the final command trows and error wait a couple minutes for the GoCD Server deployment and execute again the command that you could watch at the output, you will look for somethin like `python scripts/pipeline.py 35.201.82.210`**)
+```
+"invocation": {
+        "module_args": {
+            "_raw_params": "python scripts/pipeline.py 35.201.82.210", 
+            "_uses_shell": false, 
+```
 
 4. Access to GoCD GIU and enable the agent
 5. Create a new environment and attach the pipeline and the agent
