@@ -1,0 +1,96 @@
+---
+- hosts: 127.0.0.1
+  connection: local
+  gather_facts: false
+  tasks:
+  - name: Fetch Billing Account
+    shell: gcloud alpha billing accounts list | sed -n 2p | awk '{print $1;}'
+    register: billing_account
+
+  - name: enable Billing
+    command: gcloud alpha billing projects link {{project_name}} --billing-account {{billing_account.stdout}}
+
+  - name: Enabling K8s API
+    command: gcloud  services enable container.googleapis.com
+
+
+  - name: creating cluster
+    command: gcloud container clusters create {{cluster_name}} --zone {{zone}} --num-nodes 2
+
+  - name: get cluster credentials
+    command: gcloud container clusters get-credentials {{cluster_name}} --zone  {{zone}}  --project {{project_name}}
+
+  - name: create secrets
+    command: kubectl create secret generic user-pass --from-file=./username.txt --from-file=./password.txt
+
+  - name: get cluster info
+    command: kubectl cluster-info
+
+  - name: create service account
+    command: kubectl create serviceaccount --namespace kube-system tiller
+
+  - name: create binding role
+    command: kubectl create clusterrolebinding tiller-cluster-rule --clusterrole=cluster-admin --serviceaccount=kube-system:tiller
+
+
+  - name: helm init
+    command: helm init --service-account tiller --upgrade
+
+  - name: add incubator repo
+    command: helm repo add incubator https://kubernetes-charts-incubator.storage.googleapis.com/
+  
+  - name: repo update
+    command: helm repo update
+
+  - pause:
+      seconds: 35
+
+  - name: install gocd
+    command: helm install --name {{release_name}} incubator/gocd
+
+  - name: scale agent
+    command: kubectl scale --replicas=1 deployment/{{release_name}}-gocd-agent
+
+
+  - name: get agent name
+    shell: kubectl get pods | sed -n 2p | awk '{print $1;}'
+    register: agent
+
+  - debug:
+      var: agent
+      verbosity: 2
+
+  - pause:
+      seconds: 35
+
+  - name: copy entrypoint
+    command: kubectl cp scripts/entrypoint.sh default/{{agent.stdout}}:/home/go/entrypoint.sh
+
+  - name: change permissions
+    shell: kubectl --namespace=default exec {{agent.stdout}} chmod +x /home/go/entrypoint.sh
+
+  - pause:
+      seconds: 35
+
+  - name: entrypoint exec
+    shell: kubectl --namespace=default exec {{agent.stdout}} /home/go/entrypoint.sh
+
+  - pause:
+      seconds: 60
+
+  - name: get ip server
+    shell: kubectl get ingress --namespace default {{release_name}}-gocd-server -o jsonpath="{.status.loadBalancer.ingress[0].ip}"
+    register: http_addr_gocd_server
+
+  - pause:
+      seconds: 35
+
+  - name: upload pipeline
+    command: python scripts/pipeline.py {{http_addr_gocd_server.stdout}}
+
+  - debug: msg="The GoCD server address is http://{{ http_addr_gocd_server.stdout }}"
+
+
+
+
+

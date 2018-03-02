@@ -1,0 +1,5 @@
+---
+  cluster_name: k8s-cluster
+  zone: us-central1-a
+  project_name: k8s-gocd5
+  release_name: gocd-rel
